@@ -2,6 +2,7 @@ from playwright.sync_api import sync_playwright
 from collections import defaultdict
 import json
 import requests
+import pandas as pd
 
 def get_item_links(page):
     # Navigate to the market page
@@ -25,7 +26,6 @@ def get_item_nameid(page, link):
         if 'itemordershistogram' in request.url:
             # Extract the item nameid from the URL
             item_nameid[0] = request.url.split('item_nameid=')[1].split('&')[0]
-            print(f"Item nameid: {item_nameid[0]}")
 
         # Continue the request
         route.continue_()
@@ -175,7 +175,7 @@ def process_item_links(page, link):
     item_nameid = get_item_nameid(page, link)
 
     # Define your sessionid cookie
-
+    sessionid = '76561198027879076||eyAidHlwIjogIkpXVCIsICJhbGciOiAiRWREU0EiIH0.eyAiaXNzIjogInI6MEQyRF8yMjg0NkI5Ml82MENGQiIsICJzdWIiOiAiNzY1NjExOTgwMjc4NzkwNzYiLCAiYXVkIjogWyAid2ViIiBdLCAiZXhwIjogMTY4NzI4ODYzNSwgIm5iZiI6IDE2Nzg1NjEwNjQsICJpYXQiOiAxNjg3MjAxMDY0LCAianRpIjogIjE1NDhfMjJCOTk5MkRfMDc2MkIiLCAib2F0IjogMTY4Mzc1NDQyMiwgInJ0X2V4cCI6IDE3MDE3ODI4NjQsICJwZXIiOiAwLCAiaXBfc3ViamVjdCI6ICIxMDQuMTI4LjE2MS4yMDkiLCAiaXBfY29uZmlybWVyIjogIjEwNC4xMjguMTYxLjIwOSIgfQ.9Wy_1zmeVOp4f3rt-WXrXzSyCHxk6RyS4w30ztCEK4QHfqksxyHWa3Qkpq4umsWeYl1eWj6Cdfx0eXv17Hr6BQ'  
     # Define your headers
     headers = {
         'Cookie': f'steamLoginSecure={sessionid}'
@@ -185,39 +185,77 @@ def process_item_links(page, link):
 
     # Get item details
     name, game, item_type_element, items_for_sale, sell_price, buy_requests, buy_price = get_item_details(page)
-    print(name, game, item_type_element, items_for_sale, sell_price, buy_requests, buy_price)
 
     # Get priceoverview data
     lowest_price, volume, median_price = get_priceoverview_data(name)
-    print(lowest_price, volume, median_price)
 
     # Get pricehistory data
     pricehistory_data = get_pricehistory_data(name, headers)
     if pricehistory_data:
         # Process pricehistory data
         daily_data = process_pricehistory_data(pricehistory_data)
-        print(daily_data)
     
     # Get histogram data
     histogram_data = get_histogram_data(item_nameid, headers)
     if histogram_data:
         # Process histogram data
         processed_data = process_histogram(histogram_data)
-        print(processed_data)
 
+    
+    data = {
+        'Name': [name],
+        'Game': [game],
+        'Item Type': [item_type_element],
+        'Items for Sale': [items_for_sale],
+        'Sell Price': [sell_price],
+        'Buy Requests': [buy_requests],
+        'Buy Price': [buy_price],
+        'Lowest Price': [lowest_price],
+        'Volume': [volume],
+        'Median Price': [median_price],
+        'Daily Data': [daily_data],
+        'Processed Data': [processed_data]
+    }
 
+    item_df = pd.DataFrame(data)
 
+    # Create a DataFrame to store the daily data
+    daily_df = pd.DataFrame(daily_data).T
+    daily_df.index.name = 'Date'
+    daily_df.reset_index(inplace=True)
+    daily_df['Name'] = name  # Add a column to link the data to the item
+
+    # Create a DataFrame to store the processed data
+    processed_df = pd.DataFrame(processed_data)
+    processed_df['Name'] = name  # Add a column to link the data to the item
+
+    return item_df, daily_df, processed_df
+    
 def main(): 
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page()
 
         item_links = get_item_links(page)
-        print(item_links[0:5])
+
+        item_dfs = []
+        daily_dfs = []
+        processed_dfs = []
         
         for link in item_links:
-            process_item_links(page, link)
+            item_df, daily_df, processed_df = process_item_links(page, link)
+            item_dfs.append(item_df)
+            daily_dfs.append(daily_df)
+            processed_dfs.append(processed_df)
 
+            all_items_df = pd.concat(item_dfs, ignore_index=True)
+            all_daily_df = pd.concat(daily_dfs, ignore_index=True)
+            all_processed_df = pd.concat(processed_dfs, ignore_index=True)
+        
+            all_items_df.to_csv('items.csv', index=False)
+            all_daily_df.to_csv('daily.csv', index=False)
+            all_processed_df.to_csv('processed.csv', index=False)
+        
         browser.close()
 
 if __name__ == "__main__":
