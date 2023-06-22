@@ -1,8 +1,9 @@
 from playwright.sync_api import sync_playwright
 from collections import defaultdict
+import pandas as pd
 import json
 import requests
-import pandas as pd
+import ast
 
 def get_item_links(page):
     # Navigate to the market page
@@ -176,16 +177,26 @@ def process_item_links(page, link):
 
     # Define your sessionid cookie
     sessionid = '76561198027879076||eyAidHlwIjogIkpXVCIsICJhbGciOiAiRWREU0EiIH0.eyAiaXNzIjogInI6MEQyRF8yMjg0NkI5Ml82MENGQiIsICJzdWIiOiAiNzY1NjExOTgwMjc4NzkwNzYiLCAiYXVkIjogWyAid2ViIiBdLCAiZXhwIjogMTY4NzI4ODYzNSwgIm5iZiI6IDE2Nzg1NjEwNjQsICJpYXQiOiAxNjg3MjAxMDY0LCAianRpIjogIjE1NDhfMjJCOTk5MkRfMDc2MkIiLCAib2F0IjogMTY4Mzc1NDQyMiwgInJ0X2V4cCI6IDE3MDE3ODI4NjQsICJwZXIiOiAwLCAiaXBfc3ViamVjdCI6ICIxMDQuMTI4LjE2MS4yMDkiLCAiaXBfY29uZmlybWVyIjogIjEwNC4xMjguMTYxLjIwOSIgfQ.9Wy_1zmeVOp4f3rt-WXrXzSyCHxk6RyS4w30ztCEK4QHfqksxyHWa3Qkpq4umsWeYl1eWj6Cdfx0eXv17Hr6BQ'  
+
     # Define your headers
     headers = {
         'Cookie': f'steamLoginSecure={sessionid}'
     }
+
     # Navigate to the item page
     page.goto(link)
 
     # Get item details
     name, game, item_type_element, items_for_sale, sell_price, buy_requests, buy_price = get_item_details(page)
 
+    items_for_sale = int(items_for_sale.replace(',', ''))
+    volume = int(volume.replace(',',''))
+
+    sell_price = float(sell_price.replace('$',''))
+    buy_price = float(buy_price.replace('$', ''))
+    lowest_price = float(lowest_price.replace('$', ''))
+    median_price = float(median_price('$',''))
+ 
     # Get priceoverview data
     lowest_price, volume, median_price = get_priceoverview_data(name)
 
