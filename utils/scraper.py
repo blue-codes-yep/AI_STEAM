@@ -42,6 +42,7 @@ def get_item_nameid(page, link):
 
     return item_nameid[0]
 
+
 def get_histogram_data(item_nameid, headers):
     # Define the histogram link
     histogram_link = f"https://steamcommunity.com/market/itemordershistogram?country=US&language=english&currency=1&item_nameid={item_nameid}&two_factor=0"
@@ -63,14 +64,9 @@ def process_histogram(histogram_data):
     # Extract data
     buy_order_graph = histogram_data['buy_order_graph'][:2]
     sell_order_graph = histogram_data['sell_order_graph'][:2]
-    highest_buy_order = histogram_data['highest_buy_order'][:2]
-    lowest_sell_order = histogram_data['sell_order_graph'][:2]
-
     processed_data = {
         "Buy Order Graph": buy_order_graph,
         "Sell Order Graph": sell_order_graph,
-        "Highest Buy Order": highest_buy_order,
-        "Lowest Sell Order": lowest_sell_order
     }
     
     return processed_data
@@ -91,6 +87,7 @@ def get_item_details(page):
     buy_price = elements.nth(3).inner_text()
 
     return name, game, item_type_element, items_for_sale, sell_price, buy_requests, buy_price
+
 
 def get_priceoverview_data(name):
     # Navigate to the priceoverview route
@@ -114,6 +111,7 @@ def get_priceoverview_data(name):
         print(f"Failed to get priceoverview data for {name}")
         return None, None, None
 
+
 def get_pricehistory_data(name, headers):
     name_encoded = name.replace(' ', '%20').replace('&', '%26')
     # Define the pricehistory link
@@ -131,6 +129,7 @@ def get_pricehistory_data(name, headers):
         print(f"Failed to get pricehistory data for {name}")
         return None
 
+
 def process_pricehistory_data(pricehistory_data):
     # Create a dictionary to store the daily data
     daily_data = defaultdict(list)
@@ -144,7 +143,6 @@ def process_pricehistory_data(pricehistory_data):
 
         # Add the price and volume to the daily data
         daily_data[date].append((price, volume))
-
     # Now, daily_data is a dictionary where each key is a date and the value is a list of (price, volume) tuples for that date
 
     # Get the last 5 days
@@ -176,7 +174,7 @@ def process_item_links(page, link):
     item_nameid = get_item_nameid(page, link)
 
     # Define your sessionid cookie
-    sessionid = '76561198027879076||eyAidHlwIjogIkpXVCIsICJhbGciOiAiRWREU0EiIH0.eyAiaXNzIjogInI6MEQyRF8yMjg0NkI5Ml82MENGQiIsICJzdWIiOiAiNzY1NjExOTgwMjc4NzkwNzYiLCAiYXVkIjogWyAid2ViIiBdLCAiZXhwIjogMTY4NzI4ODYzNSwgIm5iZiI6IDE2Nzg1NjEwNjQsICJpYXQiOiAxNjg3MjAxMDY0LCAianRpIjogIjE1NDhfMjJCOTk5MkRfMDc2MkIiLCAib2F0IjogMTY4Mzc1NDQyMiwgInJ0X2V4cCI6IDE3MDE3ODI4NjQsICJwZXIiOiAwLCAiaXBfc3ViamVjdCI6ICIxMDQuMTI4LjE2MS4yMDkiLCAiaXBfY29uZmlybWVyIjogIjEwNC4xMjguMTYxLjIwOSIgfQ.9Wy_1zmeVOp4f3rt-WXrXzSyCHxk6RyS4w30ztCEK4QHfqksxyHWa3Qkpq4umsWeYl1eWj6Cdfx0eXv17Hr6BQ'  
+    sessionid = '76561198027879076%7C%7CeyAidHlwIjogIkpXVCIsICJhbGciOiAiRWREU0EiIH0.eyAiaXNzIjogInI6MEQyRF8yMjg0NkI5Ml82MENGQiIsICJzdWIiOiAiNzY1NjExOTgwMjc4NzkwNzYiLCAiYXVkIjogWyAid2ViIiBdLCAiZXhwIjogMTY4NzU4MjcyNiwgIm5iZiI6IDE2Nzg4NTU1NTcsICJpYXQiOiAxNjg3NDk1NTU3LCAianRpIjogIjBEMUNfMjJCQkNBRkFfMEZFRkIiLCAib2F0IjogMTY4Mzc1NDQyMiwgInJ0X2V4cCI6IDE3MDE3ODI4NjQsICJwZXIiOiAwLCAiaXBfc3ViamVjdCI6ICIxMDQuMTI4LjE2MS4yMDkiLCAiaXBfY29uZmlybWVyIjogIjEwNC4xMjguMTYxLjIwOSIgfQ.aBOUQXZ5_v5H8fHzT5oknVNYC9gW4C52NxM7Wv1lUP5u-oPasAJMgDeyYwnF2aP4FUdGJItPQP65C0rjUBECCQ'
 
     # Define your headers
     headers = {
@@ -189,25 +187,19 @@ def process_item_links(page, link):
     # Get item details
     name, game, item_type_element, items_for_sale, sell_price, buy_requests, buy_price = get_item_details(page)
 
-    items_for_sale = int(items_for_sale.replace(',', ''))
-    volume = int(volume.replace(',',''))
-
-    sell_price = float(sell_price.replace('$',''))
-    buy_price = float(buy_price.replace('$', ''))
-    lowest_price = float(lowest_price.replace('$', ''))
-    median_price = float(median_price('$',''))
- 
     # Get priceoverview data
     lowest_price, volume, median_price = get_priceoverview_data(name)
 
     # Get pricehistory data
     pricehistory_data = get_pricehistory_data(name, headers)
+
     if pricehistory_data:
         # Process pricehistory data
         daily_data = process_pricehistory_data(pricehistory_data)
     
     # Get histogram data
     histogram_data = get_histogram_data(item_nameid, headers)
+
     if histogram_data:
         # Process histogram data
         processed_data = process_histogram(histogram_data)
@@ -228,6 +220,11 @@ def process_item_links(page, link):
         'Processed Data': [processed_data]
     }
 
+    item_df, daily_df, processed_df = create_dataframes(name, data, daily_data, processed_data)
+
+    return item_df, daily_df, processed_df
+
+def create_dataframes(name, data, daily_data, processed_data):
     item_df = pd.DataFrame(data)
 
     # Create a DataFrame to store the daily data
@@ -241,7 +238,30 @@ def process_item_links(page, link):
     processed_df['Name'] = name  # Add a column to link the data to the item
 
     return item_df, daily_df, processed_df
+
     
+def clean_data(item_df, daily_df, processed_df):
+    # Remove commas and convert to int
+    item_df['Items for Sale'] = item_df['Items for Sale'].str.replace(',', '').astype(int)
+    item_df['Volume'] = item_df['Volume'].str.replace(',', '').astype(int)
+
+    # Remove dollar signs and convert to float
+    item_df['Sell Price'] = item_df['Sell Price'].str.replace('$', '').astype(float)
+    item_df['Buy Price'] = item_df['Buy Price'].str.replace('$', '').astype(float)
+    item_df['Lowest Price'] = item_df['Lowest Price'].str.replace('$', '').astype(float)
+    item_df['Median Price'] = item_df['Median Price'].str.replace('$', '').astype(float)
+
+
+    # Convert 'Date' to datetime 
+    daily_df['Date'] = pd.to_datetime(daily_df['Date'])
+    
+    # Split 'Buy Order Graph' and 'Sell Order Graph' into separate columns
+    processed_df[['Buy Order Graph 1','Buy Order Graph 2' ]] = pd.DataFrame(processed_df['Buy Order Graph'].tolist(), index=processed_df.index)[[0, 1]]
+    processed_df[['Sell Order Graph 1', 'Sell Order Graph 2']] = pd.DataFrame(processed_df['Sell Order Graph'].tolist(), index=processed_df.index)[[0, 1]]
+
+    
+    return item_df, daily_df, processed_df
+
 def main(): 
     with sync_playwright() as p:
         browser = p.chromium.launch()
@@ -255,6 +275,9 @@ def main():
         
         for link in item_links:
             item_df, daily_df, processed_df = process_item_links(page, link)
+            
+            item_df, daily_df, processed_df = clean_data(item_df, daily_df, processed_df)
+            
             item_dfs.append(item_df)
             daily_dfs.append(daily_df)
             processed_dfs.append(processed_df)
