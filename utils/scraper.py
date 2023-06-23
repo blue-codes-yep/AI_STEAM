@@ -1,9 +1,8 @@
 from playwright.sync_api import sync_playwright
 from collections import defaultdict
 import pandas as pd
-import json
 import requests
-import ast
+
 
 def get_item_links(page):
     # Navigate to the market page
