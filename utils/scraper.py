@@ -173,7 +173,7 @@ def process_item_links(page, link):
     item_nameid = get_item_nameid(page, link)
 
     # Define your sessionid cookie
-    sessionid = '76561198027879076%7C%7CeyAidHlwIjogIkpXVCIsICJhbGciOiAiRWREU0EiIH0.eyAiaXNzIjogInI6MEQyRF8yMjg0NkI5Ml82MENGQiIsICJzdWIiOiAiNzY1NjExOTgwMjc4NzkwNzYiLCAiYXVkIjogWyAid2ViIiBdLCAiZXhwIjogMTY4NzU4MjcyNiwgIm5iZiI6IDE2Nzg4NTU1NTcsICJpYXQiOiAxNjg3NDk1NTU3LCAianRpIjogIjBEMUNfMjJCQkNBRkFfMEZFRkIiLCAib2F0IjogMTY4Mzc1NDQyMiwgInJ0X2V4cCI6IDE3MDE3ODI4NjQsICJwZXIiOiAwLCAiaXBfc3ViamVjdCI6ICIxMDQuMTI4LjE2MS4yMDkiLCAiaXBfY29uZmlybWVyIjogIjEwNC4xMjguMTYxLjIwOSIgfQ.aBOUQXZ5_v5H8fHzT5oknVNYC9gW4C52NxM7Wv1lUP5u-oPasAJMgDeyYwnF2aP4FUdGJItPQP65C0rjUBECCQ'
+    sessionid = '-'
 
     # Define your headers
     headers = {
