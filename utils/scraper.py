@@ -173,7 +173,7 @@ def process_item_links(page, link):
     item_nameid = get_item_nameid(page, link)
 
     # Define your sessionid cookie
-    sessionid = '76561198027879076%7C%7CeyAidHlwIjogIkpXVCIsICJhbGciOiAiRWREU0EiIH0.eyAiaXNzIjogInI6MEQyRF8yMjg0NkI5Ml82MENGQiIsICJzdWIiOiAiNzY1NjExOTgwMjc4NzkwNzYiLCAiYXVkIjogWyAid2ViIiBdLCAiZXhwIjogMTY4NzU4MjcyNiwgIm5iZiI6IDE2Nzg4NTU1NTcsICJpYXQiOiAxNjg3NDk1NTU3LCAianRpIjogIjBEMUNfMjJCQkNBRkFfMEZFRkIiLCAib2F0IjogMTY4Mzc1NDQyMiwgInJ0X2V4cCI6IDE3MDE3ODI4NjQsICJwZXIiOiAwLCAiaXBfc3ViamVjdCI6ICIxMDQuMTI4LjE2MS4yMDkiLCAiaXBfY29uZmlybWVyIjogIjEwNC4xMjguMTYxLjIwOSIgfQ.aBOUQXZ5_v5H8fHzT5oknVNYC9gW4C52NxM7Wv1lUP5u-oPasAJMgDeyYwnF2aP4FUdGJItPQP65C0rjUBECCQ'
+    sessionid = '76561198027879076%7C%7CeyAidHlwIjogIkpXVCIsICJhbGciOiAiRWREU0EiIH0.eyAiaXNzIjogInI6MEQyRF8yMjg0NkI5Ml82MENGQiIsICJzdWIiOiAiNzY1NjExOTgwMjc4NzkwNzYiLCAiYXVkIjogWyAid2ViIiBdLCAiZXhwIjogMTY4Nzc1MjE0MywgIm5iZiI6IDE2NzkwMjQwNzcsICJpYXQiOiAxNjg3NjY0MDc3LCAianRpIjogIjBEMUNfMjJCQkNCNkVfMkVFNkYiLCAib2F0IjogMTY4Mzc1NDQyMiwgInJ0X2V4cCI6IDE3MDE3ODI4NjQsICJwZXIiOiAwLCAiaXBfc3ViamVjdCI6ICIxMDQuMTI4LjE2MS4yMDkiLCAiaXBfY29uZmlybWVyIjogIjEwNC4xMjguMTYxLjIwOSIgfQ.Zduia1m8zmaxMfsd9mFWJ3wiBYc3cLOOhZ2fQ_ZPoy5kySVxJJ96gvyTHlWKtfN59UH2Pktf2DsSNp_ga75SDw'
 
     # Define your headers
     headers = {
@@ -257,6 +257,7 @@ def clean_data(item_df, daily_df, processed_df):
     # Split 'Buy Order Graph' and 'Sell Order Graph' into separate columns
     processed_df[['Buy Order Graph 1','Buy Order Graph 2' ]] = pd.DataFrame(processed_df['Buy Order Graph'].tolist(), index=processed_df.index)[[0, 1]]
     processed_df[['Sell Order Graph 1', 'Sell Order Graph 2']] = pd.DataFrame(processed_df['Sell Order Graph'].tolist(), index=processed_df.index)[[0, 1]]
+    processed_df.columns = ["Buy Order Graph", "Sell Order Graph", "Name", "Lowest Buy", "Volume", "2nd Lowest Buy", "2nd Volume"]
 
     
     return item_df, daily_df, processed_df
