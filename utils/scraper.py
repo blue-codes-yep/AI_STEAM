@@ -16,9 +16,10 @@ def get_item_links(page):
     return item_links
 
 
-def get_item_nameid(page, link):
-    # Define a list to store the item nameid
+def get_item_id(page, link):
+    # Define a list to store the item nameid and appid
     item_nameid = [None]
+    appid = [None]
 
     # Define a callback function for the route
     def handle_route(route, request):
@@ -26,7 +27,7 @@ def get_item_nameid(page, link):
         if 'itemordershistogram' in request.url:
             # Extract the item nameid from the URL
             item_nameid[0] = request.url.split('item_nameid=')[1].split('&')[0]
-
+            
         # Continue the request
         route.continue_()
 
@@ -36,15 +37,23 @@ def get_item_nameid(page, link):
     # Navigate to the item page
     page.goto(link)
 
+    
+    if '/listings/' in link:
+        appid[0] = link.split('/listings/')[1].split('/')[0]
+    else:
+        print(f"Failed to find '/listings/' in {link}")
+        print(appid[0])
+
     # Stop network interception
     page.unroute('**')
 
-    return item_nameid[0]
+    return item_nameid[0], appid[0]
 
 
 def get_histogram_data(item_nameid, headers):
+    
     # Define the histogram link
-    histogram_link = f"https://steamcommunity.com/market/itemordershistogram?country=US&language=english&currency=1&item_nameid={item_nameid}&two_factor=0"
+    histogram_link = f"https://steamcommunity.com/market/itemordershistogram?country=US&language=english&currency=1&item_nameid={item_nameid[0]}&two_factor=0"
 
     # Send a GET request to the histogram route with the headers
     response = requests.get(histogram_link, headers=headers)
@@ -88,10 +97,10 @@ def get_item_details(page):
     return name, game, item_type_element, items_for_sale, sell_price, buy_requests, buy_price
 
 
-def get_priceoverview_data(name):
+def get_priceoverview_data(name,appid):
     # Navigate to the priceoverview route
     name_encoded = name.replace(' ', '%20').replace('&', '%26')
-    priceoverview_link = f"https://steamcommunity.com/market/priceoverview/?appid=730&currency=1&market_hash_name={name_encoded}"
+    priceoverview_link = f"https://steamcommunity.com/market/priceoverview/?appid={appid[1]}&currency=1&market_hash_name={name_encoded}"
 
     # Send a GET request to the priceoverview route
     response = requests.get(priceoverview_link)
@@ -111,10 +120,11 @@ def get_priceoverview_data(name):
         return None, None, None
 
 
-def get_pricehistory_data(name, headers):
+def get_pricehistory_data(name, headers, appid):
     name_encoded = name.replace(' ', '%20').replace('&', '%26')
-    # Define the pricehistory link
-    pricehistory_link = f"https://steamcommunity.com/market/pricehistory/?appid=730&market_hash_name={name_encoded}"
+    print(name_encoded)
+    print(appid[1])
+    pricehistory_link = f"https://steamcommunity.com/market/pricehistory/?appid={appid[1]}&market_hash_name={name_encoded}"
 
     # Send a GET request to the pricehistory route with the headers
     response = requests.get(pricehistory_link, headers=headers)
@@ -170,10 +180,10 @@ def process_pricehistory_data(pricehistory_data):
 
 def process_item_links(page, link):
     print(f"Processing link: {link}")
-    item_nameid = get_item_nameid(page, link)
-
+    item_nameid = get_item_id(page, link)
+    appid= get_item_id(page,link)
     # Define your sessionid cookie
-    sessionid = '-'
+    sessionid = '76561198027879076%7C%7CeyAidHlwIjogIkpXVCIsICJhbGciOiAiRWREU0EiIH0.eyAiaXNzIjogInI6MEQyRF8yMjg0NkI5Ml82MENGQiIsICJzdWIiOiAiNzY1NjExOTgwMjc4NzkwNzYiLCAiYXVkIjogWyAid2ViIiBdLCAiZXhwIjogMTY4Nzc1MjE0MywgIm5iZiI6IDE2NzkwMjQwNzcsICJpYXQiOiAxNjg3NjY0MDc3LCAianRpIjogIjBEMUNfMjJCQkNCNkVfMkVFNkYiLCAib2F0IjogMTY4Mzc1NDQyMiwgInJ0X2V4cCI6IDE3MDE3ODI4NjQsICJwZXIiOiAwLCAiaXBfc3ViamVjdCI6ICIxMDQuMTI4LjE2MS4yMDkiLCAiaXBfY29uZmlybWVyIjogIjEwNC4xMjguMTYxLjIwOSIgfQ.Zduia1m8zmaxMfsd9mFWJ3wiBYc3cLOOhZ2fQ_ZPoy5kySVxJJ96gvyTHlWKtfN59UH2Pktf2DsSNp_ga75SDw'
 
     # Define your headers
     headers = {
@@ -187,10 +197,10 @@ def process_item_links(page, link):
     name, game, item_type_element, items_for_sale, sell_price, buy_requests, buy_price = get_item_details(page)
 
     # Get priceoverview data
-    lowest_price, volume, median_price = get_priceoverview_data(name)
+    lowest_price, volume, median_price = get_priceoverview_data(name, item_nameid)
 
     # Get pricehistory data
-    pricehistory_data = get_pricehistory_data(name, headers)
+    pricehistory_data = get_pricehistory_data(name, headers, appid)
 
     if pricehistory_data:
         # Process pricehistory data
