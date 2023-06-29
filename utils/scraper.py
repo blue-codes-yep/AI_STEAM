@@ -13,29 +13,6 @@ username = os.getenv("STEAM_USERNAME")
 password = os.getenv("STEAM_PASSWORD")
 sessionid = os.getenv("STEAM_LOGIN_SECURE")
 
-proxies = [
-    "54.237.145.145:80",
-    "154.3.9.16:8081",
-    "64.225.8.115:9996",
-    "71.86.129.131:8080",
-    "64.225.4.63:9993",
-    "107.148.94.92:80",
-    "47.90.162.160:8080",
-    "66.135.14.166:443",
-    "54.196.13.224:80",
-    "103.114.219.115:3128"
-]
-proxy_pool = cycle(proxies)
-
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
-def make_request(url, headers):
-    proxy = next(proxy_pool)
-    try:
-        response = requests.get(url, headers=headers, proxies={"http": proxy, "https":proxy})
-        response.raise_for_status()
-        return response
-    except requests.exceptions.RequestException:
-        raise
 
 # Login to Steam - To get the cookies - To-Do
 def login(page):
@@ -56,7 +33,7 @@ def login(page):
 def get_item_links(page):
     # Navigate to the market page
     page.goto("https://steamcommunity.com/market/")
-
+    print(page.content())
     # Get all item elements
     item_elements = page.query_selector_all('.market_listing_row_link')
 
@@ -103,16 +80,17 @@ def get_histogram_data(item_nameid, headers):
     
     # Define the histogram link
     histogram_link = f"https://steamcommunity.com/market/itemordershistogram?country=US&language=english&currency=1&item_nameid={item_nameid[0]}&two_factor=0"
-    try:
-        # Send a GET request to the histogram route with the headers
-        response = make_request(histogram_link, headers)
 
+    # Send a GET request to the histogram route with the headers
+    response = requests.get(histogram_link, headers=headers)
+
+    if response.status_code == 200:
         # Parse the JSON response
         histogram_data = response.json()
 
         return histogram_data
-    except Exception as e:
-        print(f"Failed to get histogram data for item with nameid {item_nameid}: {e}")
+    else:
+        print(f"Failed to get histogram data for item with nameid {item_nameid}")
         return None
 
 
@@ -319,34 +297,71 @@ def clean_data(item_df, daily_df, processed_df):
     
     return item_df, daily_df, processed_df
 
+
+def process_link(page, link):
+    item_dfs = []
+    daily_dfs = []
+    processed_dfs = []
+    
+    item_df, daily_df, processed_df = process_item_links(page, link)
+    item_df, daily_df, processed_df = clean_data(item_df, daily_df, processed_df)
+    
+    item_dfs.append(item_df)
+    daily_dfs.append(daily_df)
+    processed_dfs.append(processed_df)
+
+    all_items_df = pd.concat(item_dfs, ignore_index=True)
+    all_daily_df = pd.concat(daily_dfs, ignore_index=True)
+    all_processed_df = pd.concat(processed_dfs, ignore_index=True)
+
+    all_items_df.to_csv('items.csv', index=False)
+    all_daily_df.to_csv('daily.csv', index=False)
+    all_processed_df.to_csv('processed.csv', index=False)
+
 def main(): 
     with sync_playwright() as p:
-        browser = p.chromium.launch()
-        page = browser.new_page()
+        proxies = [
+            "54.237.145.145:80",
+            "103.114.219.115:3128"
+        ]
+        proxy_pool = cycle(proxies)
+        
+        proxy = next(proxy_pool)
+        browser = p.chromium.launch(proxy={'server': proxy})
+        context = browser.new_context()
+
+        # Clear cookies and permissions
+        context.clear_cookies()
+        context.clear_permissions()
+
+        page = context.new_page()
 
         item_links = get_item_links(page)
-
-        item_dfs = []
-        daily_dfs = []
-        processed_dfs = []
         
+        print(f"Found {len(item_links)} items")
         for link in item_links:
-            item_df, daily_df, processed_df = process_item_links(page, link)
-            
-            item_df, daily_df, processed_df = clean_data(item_df, daily_df, processed_df)
-            
-            item_dfs.append(item_df)
-            daily_dfs.append(daily_df)
-            processed_dfs.append(processed_df)
+            for _ in range(3):
+                try:
+                    process_link(page, link)
+                    break
+                except Exception as e:
+                    print(f"Failed to process link {link} due to {e}")
+                    # Get the next proxy from the pool
+                    proxy = next(proxy_pool)
+                    # Close the current browser
+                    browser.close()
+                    # Launch a new browser with the new proxy
+                    browser = p.chromium.launch(proxy={"server": proxy})
+                    context = browser.new_context()
 
-            all_items_df = pd.concat(item_dfs, ignore_index=True)
-            all_daily_df = pd.concat(daily_dfs, ignore_index=True)
-            all_processed_df = pd.concat(processed_dfs, ignore_index=True)
-        
-            all_items_df.to_csv('items.csv', index=False)
-            all_daily_df.to_csv('daily.csv', index=False)
-            all_processed_df.to_csv('processed.csv', index=False)
-        
+                    # Clear cookies and permissions
+                    context.clear_cookies()
+                    context.clear_permissions()
+
+                    page = context.new_page()
+            else:
+                print(f"Failed to process link {link} after {3} retries")
+
         browser.close()
 
 if __name__ == "__main__":
