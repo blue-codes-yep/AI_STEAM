@@ -1,9 +1,9 @@
 from scrapingbee import ScrapingBeeClient
 from playwright.sync_api import sync_playwright
+from datetime import datetime
 from bs4 import BeautifulSoup
 from collections import defaultdict
 from dotenv import load_dotenv
-from urllib.parse import urlparse, parse_qs
 import pandas as pd
 import requests
 import os
@@ -48,7 +48,8 @@ def get_item_links(client):
         item_links = [item['href'] for item in item_elements]
         return item_links
     else:
-        print(f"Failed to fetch page: {response.text}")
+        print(f"Failed to fetch page: {response.text[:100]}")  # Only print the first 100 characters
+
         return []
 
 
@@ -114,14 +115,15 @@ def get_histogram_data(item_nameid, headers):
 
 def process_histogram(histogram_data):
     # Extract data
-    buy_order_graph = histogram_data['buy_order_graph'][:2]
-    sell_order_graph = histogram_data['sell_order_graph'][:2]
+    buy_order_graph = histogram_data['buy_order_graph']
+    sell_order_graph = histogram_data['sell_order_graph']
     processed_data = {
         "Buy Order Graph": buy_order_graph,
         "Sell Order Graph": sell_order_graph,
     }
     
     return processed_data
+
     
 
 def get_item_details(client, link, headers):
@@ -180,6 +182,9 @@ def get_pricehistory_data(name, headers, appid):
     print(name_encoded)
     print(appid)
     pricehistory_link = f"https://steamcommunity.com/market/pricehistory/?appid={appid}&market_hash_name={name_encoded}"
+    
+    # Print the pricehistory_link for debugging
+    print('This is pricehistory_link:', pricehistory_link)
 
     # Send a GET request to the pricehistory route with the headers
     response = requests.get(pricehistory_link, headers=headers)
@@ -187,36 +192,46 @@ def get_pricehistory_data(name, headers, appid):
     if response.status_code == 200:
         # Parse the JSON response
         pricehistory_data = response.json()
-
+        print('This is pricehistory_data:', pricehistory_data['prices'])
         return pricehistory_data['prices']
     else:
         print(f"Failed to get pricehistory data for {name}")
         return None
 
 
-def process_pricehistory_data(pricehistory_data):
+def process_pricehistory_data(pricehistory_data, last_date=None):
+    if not pricehistory_data:
+        return {}
     # Create a dictionary to store the daily data
     daily_data = defaultdict(list)
-
+    print(f'last_date: {last_date}', )
+    print(f'pricehistory_data: {pricehistory_data}', )
     # Iterate over the prices data
     for price_data in pricehistory_data:
         # Extract the date, price, and volume
-        date = price_data[0][:11]  # Get only the date part, excluding the time
+        date_string = price_data[0]
+        date_string = date_string.rsplit(" ", 1)[0]  # Remove the timezone offset
+        date = datetime.strptime(date_string, '%b %d %Y %H:')
+
+
+        # Convert the date string to a datetime object
+        if last_date is not None and date <= last_date:
+            continue
         price = float(price_data[1])
         volume = int(price_data[2])
 
         # Add the price and volume to the daily data
-        daily_data[date].append((price, volume))
+        daily_data[date.strftime('%b %d %Y %H:')].append((price, volume))
+
     # Now, daily_data is a dictionary where each key is a date and the value is a list of (price, volume) tuples for that date
 
     # Get the last 5 days
-    last_5_days = list(daily_data.keys())[-5:]
-
+    last_15_days = list(daily_data.keys())
     # Prepare a dictionary to store the processed data
     processed_data = {}
 
     # Iterate over the last 5 days
-    for day in last_5_days:
+    for day in last_15_days:
         # Get the data for this day
         day_data = daily_data[day]
 
@@ -229,7 +244,7 @@ def process_pricehistory_data(pricehistory_data):
             "Average Price": avg_price,
             "Total Volume": total_volume
         }
-
+    print(f'processed_data: {processed_data}')
     return processed_data
 
 
@@ -255,19 +270,37 @@ def process_item_links(client, link, sessionid):
         # Get priceoverview data
         lowest_price, volume, median_price = get_priceoverview_data(name, appid, headers)
 
-        # Get pricehistory data
-        pricehistory_data = get_pricehistory_data(name, headers, appid)
+    # Get pricehistory data
+    pricehistory_data = get_pricehistory_data(name, headers, appid)
 
-        if pricehistory_data:
-            # Process pricehistory data
-            daily_data = process_pricehistory_data(pricehistory_data)
-        
-        # Get histogram data
-        histogram_data = get_histogram_data(item_nameid, headers)
+    if pricehistory_data:
+        # Load existing data
+        try:
+            existing_daily_df = pd.read_csv('daily.csv')
+            last_date = pd.to_datetime(existing_daily_df[existing_daily_df['Name'] == name]['Date']).max()
+        except (FileNotFoundError, pd.errors.EmptyDataError):
+            last_date = None
 
-        if histogram_data:
-            # Process histogram data
-            processed_data = process_histogram(histogram_data)
+        # Process pricehistory data
+        daily_data = process_pricehistory_data(pricehistory_data, last_date)
+
+    # Get histogram data
+    histogram_data = get_histogram_data(item_nameid, headers)
+
+    if histogram_data:
+        # Load existing data
+        try:
+            existing_processed_df = pd.read_csv('processed.csv')
+            if 'Date' in existing_processed_df.columns:
+                last_date = pd.to_datetime(existing_processed_df[existing_processed_df['Name'] == name]['Date']).max()
+            else:
+                last_date = None
+        except (FileNotFoundError, pd.errors.EmptyDataError):
+            last_date = None
+
+
+        # Process histogram data
+        processed_data = process_histogram(histogram_data)
 
         
         data = {
@@ -291,6 +324,7 @@ def process_item_links(client, link, sessionid):
     else:
         print(f"Failed to fetch page: {response.text}")
         return None, None, None
+    
 def create_dataframes(name, data, daily_data, processed_data):
     item_df = pd.DataFrame(data)
 
@@ -320,7 +354,8 @@ def clean_data(item_df, daily_df, processed_df):
 
 
     # Convert 'Date' to datetime 
-    daily_df['Date'] = pd.to_datetime(daily_df['Date'])
+    daily_df['Date'] = pd.to_datetime(daily_df['Date'], format='%b %d %Y %H:')
+
     
     # Split 'Buy Order Graph' and 'Sell Order Graph' into separate columns
     processed_df[['Buy Order Graph 1','Buy Order Graph 2' ]] = pd.DataFrame(processed_df['Buy Order Graph'].tolist(), index=processed_df.index)[[0, 1]]
