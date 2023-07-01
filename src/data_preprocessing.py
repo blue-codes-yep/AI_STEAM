@@ -12,9 +12,6 @@ def preprocess_data():
 
     # Sort data by date
     data = data.sort_values('Date')
-    data['Hour'] = data['Date'].dt.hour
-    data['DayOfWeek'] = data['Date'].dt.dayofweek
-    data = data.drop('Date', axis=1)
     
     # One-hot encode 'Name' column
     data = pd.get_dummies(data, columns=['Name'])
@@ -25,20 +22,38 @@ def preprocess_data():
     data['Average Price'] = scaler_price.fit_transform(data[['Average Price']])
     data['Total Volume'] = scaler_volume.fit_transform(data[['Total Volume']])
 
-    # Create new features for the average price and total volume for the past week and past month
-    data['Avg Price Last Week'] = data['Average Price'].rolling(window=7).mean()
-    data['Total Volume Last Week'] = data['Total Volume'].rolling(window=7).sum()
-    data['Avg Price Last Month'] = data['Average Price'].rolling(window=30).mean()
-    data['Total Volume Last Month'] = data['Total Volume'].rolling(window=30).sum()
+    # Create daily dataset
+    daily_data = data.copy()
+    daily_data.set_index('Date', inplace=True)
+    daily_data['Avg Price Last Day'] = daily_data['Average Price'].shift(1)
+    daily_data['Total Volume Last Day'] = daily_data['Total Volume'].shift(1)
 
-    # Drop rows with NaN values caused by the rolling window calculations
-    data = data.dropna()
+    # Create weekly dataset
+    weekly_data = data.resample('W', on='Date').mean()
+    weekly_data['Avg Price Last Week'] = weekly_data['Average Price'].shift(1)
+    weekly_data['Total Volume Last Week'] = weekly_data['Total Volume'].shift(1)
+
+    # Create monthly dataset
+    monthly_data = data.resample('M', on='Date').mean()
+    monthly_data['Avg Price Last Month'] = monthly_data['Average Price'].shift(1)
+    monthly_data['Total Volume Last Month'] = monthly_data['Total Volume'].shift(1)
+
+    # Drop rows with NaN values caused by the shifting
+    daily_data = daily_data.dropna()
+    weekly_data = weekly_data.dropna()
+    monthly_data = monthly_data.dropna()
 
     # Split data into features and target
-    X = data.drop('Average Price', axis=1)
-    y = data['Average Price']
+    X_daily = daily_data.drop('Average Price', axis=1)
+    y_daily = daily_data['Average Price']
+    X_weekly = weekly_data.drop('Average Price', axis=1)
+    y_weekly = weekly_data['Average Price']
+    X_monthly = monthly_data.drop('Average Price', axis=1)
+    y_monthly = monthly_data['Average Price']
 
     # Split data into training and testing sets
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, shuffle=False)
+    X_train_daily, X_test_daily, y_train_daily, y_test_daily = train_test_split(X_daily, y_daily, test_size=0.2, random_state=42, shuffle=False)
+    X_train_weekly, X_test_weekly, y_train_weekly, y_test_weekly = train_test_split(X_weekly, y_weekly, test_size=0.2, random_state=42, shuffle=False)
+    X_train_monthly, X_test_monthly, y_train_monthly, y_test_monthly = train_test_split(X_monthly, y_monthly, test_size=0.2, random_state=42, shuffle=False)
 
-    return X_train, X_test, y_train, y_test, scaler_price
+    return (X_train_daily, X_test_daily, y_train_daily, y_test_daily, scaler_price), (X_train_weekly, X_test_weekly, y_train_weekly, y_test_weekly, scaler_price), (X_train_monthly, X_test_monthly, y_train_monthly, y_test_monthly, scaler_price)
