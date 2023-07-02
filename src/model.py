@@ -15,6 +15,7 @@ def create_model(input_shape):
         tf.keras.layers.Dense(32, activation='relu'),
         tf.keras.layers.Dense(16, activation='relu'),
         tf.keras.layers.Dense(8, activation='relu'),
+        tf.keras.layers.Dense(4, activation='relu'),
         tf.keras.layers.Dense(1)
     ])
 
@@ -24,7 +25,7 @@ def create_model(input_shape):
     return model
 
 
-def train_model(model, X_train, y_train, X_test, y_test, epochs=15000):
+def train_model(model, X_train, y_train, X_test, y_test, epochs=1000):
     # Get the current time
     current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
@@ -60,7 +61,7 @@ def test_model(model,X_train, X_test,y_train, y_test, scaler_price):
 
     return y_test, predictions
 
-def create_and_evaluate_model(data, epochs=15000, model_path='model.h5'):
+def create_and_evaluate_model(data, epochs=1000, model_path='model.h5'):
     X_train, X_test, y_train, y_test, scaler_price = data
     X_train = X_train.astype('float32')
     y_train = y_train.astype('float32')
