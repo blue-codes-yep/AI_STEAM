@@ -1,4 +1,4 @@
-from scrapingbee import ScrapingBeeClient
+from scraper_api import ScraperAPIClient
 from playwright.sync_api import sync_playwright
 from datetime import datetime
 from bs4 import BeautifulSoup
@@ -7,6 +7,9 @@ from dotenv import load_dotenv
 import pandas as pd
 import requests
 import os
+import re
+import json
+import traceback
 
 # Get the username and password from environment variables
 load_dotenv()
@@ -34,12 +37,13 @@ def login(page):
 
 def get_item_links(client):
     # Send a GET request to the ScrapingBee API
-    response = client.get("https://steamcommunity.com/market/", params={"render_js": "true"})
-
+    url = "https://steamcommunity.com/market/search/render/?query=&start=10&count=50&search_descriptions=0&sort_column=popular&sort_dir=desc"
+    response = requests.get(url)
     # Check if the request was successful
     if response.status_code == 200:
+        data = json.loads(response.text)
         # Parse the HTML from the response
-        soup = BeautifulSoup(response.text, 'html.parser')
+        soup = BeautifulSoup(data['results_html'], 'html.parser')
 
         # Get all item elements
         item_elements = soup.select('.market_listing_row_link')
@@ -95,13 +99,13 @@ def get_item_id(link):
 
 
 
-def get_histogram_data(item_nameid, headers):
+def get_histogram_data(item_nameid, headers, client):
     
     # Define the histogram link
     histogram_link = f"https://steamcommunity.com/market/itemordershistogram?country=US&language=english&currency=1&item_nameid={item_nameid}&two_factor=0"
     print(f'histogram link: {histogram_link}, {item_nameid}')
     # Send a GET request to the histogram route with the headers
-    response = requests.get(histogram_link, headers=headers)
+    response = client.get(histogram_link, headers=headers, premium=True)
 
     if response.status_code == 200:
         # Parse the JSON response
@@ -114,9 +118,22 @@ def get_histogram_data(item_nameid, headers):
 
 
 def process_histogram(histogram_data):
+    # If histogram_data is None, return empty lists
+    if histogram_data is None:
+        return {
+            "Buy Order Graph": [],
+            "Sell Order Graph": [],
+        }
+
     # Extract data
     buy_order_graph = histogram_data['buy_order_graph']
     sell_order_graph = histogram_data['sell_order_graph']
+
+    # Ensure both lists are the same length
+    max_len = max(len(buy_order_graph), len(sell_order_graph))
+    buy_order_graph += [None] * (max_len - len(buy_order_graph))
+    sell_order_graph += [None] * (max_len - len(sell_order_graph))
+
     processed_data = {
         "Buy Order Graph": buy_order_graph,
         "Sell Order Graph": sell_order_graph,
@@ -124,11 +141,11 @@ def process_histogram(histogram_data):
     
     return processed_data
 
-    
 
 def get_item_details(client, link, headers):
+
     # Send a GET request to the ScrapingBee API
-    response = client.get(link, params={"render_js": "true"})
+    response = client.get(link,render=True, premium=True)
 
     # Check if the request was successful
     if response.status_code == 200:
@@ -137,6 +154,7 @@ def get_item_details(client, link, headers):
 
         # Extract the item details from the HTML
         name = soup.select_one('.market_listing_item_name').text
+        print(f'Name: {name}')
         game = soup.select_one('.market_listing_game_name').text
         item_type_element = soup.select_one('#largeiteminfo_item_type').text
 
@@ -149,7 +167,7 @@ def get_item_details(client, link, headers):
         buy_requests = elements[2].text if len(elements) > 2 else None
         buy_price = elements[3].text if len(elements) > 3 else None
 
-        print(f"Name: {name}, Game: {game}, Item Type: {item_type_element}, Items for Sale: {items_for_sale}, Sell Price: {sell_price}, Buy Requests: {buy_requests}, Buy Price: {buy_price}")
+
         return name, game, item_type_element, items_for_sale, sell_price, buy_requests, buy_price
     else:
         print(f"Failed to fetch page: {response.text}")
@@ -178,9 +196,9 @@ def get_priceoverview_data(name,appid, headers):
 
 
 def get_pricehistory_data(name, headers, appid):
+    print("in get_pricehistory_data, name is:", name)
     name_encoded = name.replace(' ', '%20').replace('&', '%26')
-    print(name_encoded)
-    print(appid)
+
     pricehistory_link = f"https://steamcommunity.com/market/pricehistory/?appid={appid}&market_hash_name={name_encoded}"
     
     # Print the pricehistory_link for debugging
@@ -192,7 +210,7 @@ def get_pricehistory_data(name, headers, appid):
     if response.status_code == 200:
         # Parse the JSON response
         pricehistory_data = response.json()
-        print('This is pricehistory_data:', pricehistory_data['prices'])
+
         return pricehistory_data['prices']
     else:
         print(f"Failed to get pricehistory data for {name}")
@@ -205,7 +223,7 @@ def process_pricehistory_data(pricehistory_data, last_date=None):
     # Create a dictionary to store the daily data
     daily_data = defaultdict(list)
     print(f'last_date: {last_date}', )
-    print(f'pricehistory_data: {pricehistory_data}', )
+
     # Iterate over the prices data
     for price_data in pricehistory_data:
         # Extract the date, price, and volume
@@ -244,7 +262,7 @@ def process_pricehistory_data(pricehistory_data, last_date=None):
             "Average Price": avg_price,
             "Total Volume": total_volume
         }
-    print(f'processed_data: {processed_data}')
+
     return processed_data
 
 
@@ -257,7 +275,8 @@ def process_item_links(client, link, sessionid):
     }
 
     # Send a GET request to the ScrapingBee API
-    response = client.get(link, params={"render_js": "true"}, headers=headers)
+    response = client.get(f"{link}?render_js=true&headers={json.dumps(headers)}")
+
 
     # Check if the request was successful
     if response.status_code == 200:
@@ -285,7 +304,7 @@ def process_item_links(client, link, sessionid):
         daily_data = process_pricehistory_data(pricehistory_data, last_date)
 
     # Get histogram data
-    histogram_data = get_histogram_data(item_nameid, headers)
+    histogram_data = get_histogram_data(item_nameid, headers, client)
 
     if histogram_data:
         # Load existing data
@@ -326,7 +345,13 @@ def process_item_links(client, link, sessionid):
         return None, None, None
     
 def create_dataframes(name, data, daily_data, processed_data):
+    for key, value in data.items():
+        print(f"{key}: {len(value)}")
+
     item_df = pd.DataFrame(data)
+
+    for key, value in daily_data.items():
+        print(f"{key}: {len(value)}")
 
     # Create a DataFrame to store the daily data
     daily_df = pd.DataFrame(daily_data).T
@@ -334,6 +359,9 @@ def create_dataframes(name, data, daily_data, processed_data):
     daily_df.reset_index(inplace=True)
     daily_df['Name'] = name  # Add a column to link the data to the item
 
+    for key, value in processed_data.items():
+        print(f"{key}: {len(value)}")
+        
     # Create a DataFrame to store the processed data
     processed_df = pd.DataFrame(processed_data)
     processed_df['Name'] = name  # Add a column to link the data to the item
@@ -352,18 +380,20 @@ def clean_data(item_df, daily_df, processed_df):
     item_df['Lowest Price'] = item_df['Lowest Price'].str.replace('$', '').astype(float)
     item_df['Median Price'] = item_df['Median Price'].str.replace('$', '').astype(float)
 
-
     # Convert 'Date' to datetime 
     daily_df['Date'] = pd.to_datetime(daily_df['Date'], format='%b %d %Y %H:')
 
-    
+    # Replace None values with empty lists in the 'Buy Order Graph' and 'Sell Order Graph' columns
+    processed_df['Buy Order Graph'] = processed_df['Buy Order Graph'].apply(lambda d: d if isinstance(d, list) else [])
+    processed_df['Sell Order Graph'] = processed_df['Sell Order Graph'].apply(lambda d: d if isinstance(d, list) else [])
+
     # Split 'Buy Order Graph' and 'Sell Order Graph' into separate columns
     processed_df[['Buy Order Graph 1','Buy Order Graph 2' ]] = pd.DataFrame(processed_df['Buy Order Graph'].tolist(), index=processed_df.index)[[0, 1]]
     processed_df[['Sell Order Graph 1', 'Sell Order Graph 2']] = pd.DataFrame(processed_df['Sell Order Graph'].tolist(), index=processed_df.index)[[0, 1]]
     processed_df.columns = ["Buy Order Graph", "Sell Order Graph", "Name", "Lowest Buy", "Volume", "2nd Lowest Buy", "2nd Volume"]
 
-    
     return item_df, daily_df, processed_df
+
 
 
 def process_link(client, link, sessionid):
@@ -374,7 +404,8 @@ def process_link(client, link, sessionid):
 
 def main(): 
     # Initialize the ScrapingBee client
-    client = ScrapingBeeClient(api_key=api_key)
+    client = ScraperAPIClient(api_key=api_key)
+    
     headers = {
         'Cookie': f'steamLoginSecure={sessionid}'
     }
@@ -396,6 +427,7 @@ def main():
                 break
             except Exception as e:
                 print(f"Failed to process link {link} due to {e}")
+                traceback.print_exc()
         else:
             print(f"Failed to process link {link} after {3} retries")
 
